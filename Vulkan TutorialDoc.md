@@ -1,3 +1,7 @@
+# vulkan tutorial on harmony
+
+这个教程绝大部分内容都是对vk的配置
+
 ## 一、创建实例
 
 ```C++
@@ -45,7 +49,6 @@ typedef struct VkInstanceCreateInfo {
 
 ```C++
 const std::vector<const char*> validationLayers = {
-    //用于作为window，展示内容
     "VK_LAYER_OHOS_surface"
 };
 bool checkValidationLayerSupport() {
@@ -93,11 +96,9 @@ instanceCreateInfo.ppEnabledExtensionNames = extensions.data();
 
 这两个是实例插件，用于描述VkSurfaceKHR对象，作为当前平台的surface或者窗口，用于展示渲染出来的画面。
 
-<br> <br>
 
 --------------------------
 
-<br> <br>
 
 ## 二、校验层使能
 
@@ -105,13 +106,12 @@ vulkan API对于性能极其敏感，他的的设计理念是最小化驱动的�
 
 但是目前鸿蒙平台不支持校验层，错误打印很少，并且难以理解，常常会出现画面异常，但是没有任何报错的情况。
 
-<br> <br>
 
 ----------
 
-<br> <br>
 
-## 三、选择硬件和队列簇
+
+## 三、查询硬件和队列簇
 
 1、选择使用的显卡
 
@@ -139,7 +139,7 @@ void vkGetPhysicalDeviceQueueFamilyProperties(
     VkQueueFamilyProperties*                    pQueueFamilyProperties);
 ```
 
-<br> <br>
+
 
 [VkQueueFamilyProperties](https://registry.khronos.org/vulkan/specs/latest/man/html/VkQueueFamilyProperties.html)
 
@@ -162,3 +162,12 @@ VK_QUEUE_TRANSFER_BIT = 0x00000004,
 VK_QUEUE_SPARSE_BINDING_BIT = 0x00000008,   //稀疏内存绑定
 VK_QUEUE_PROTECTED_BIT = 0x00000010,        //保护内存，仅能被gpu访问的内存
 ```
+
+## 创建逻辑设备
+
+前面挑完物理设备，现在要创建一个逻辑设备` VkDevice `作为物理设备的抽象，创建过程和前面也类似，都是配置需要用的特性然后创建。
+
+- [ ]  todo 可以尝试放个图片
+
+### 为逻辑设备选择队列簇
+
