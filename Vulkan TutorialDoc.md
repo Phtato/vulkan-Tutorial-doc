@@ -11,8 +11,6 @@ VkResult vkCreateInstance(
     VkInstance*                                 pInstance);
 ```
 
-<br> <br>
-
 ### [VkInstanceCreateInfo](https://registry.khronos.org/vulkan/specs/latest/man/html/VkInstanceCreateInfo.html)--实例信息
 
 ```cpp
@@ -35,13 +33,9 @@ typedef struct VkInstanceCreateInfo {
 
 支持的[插件（extensions）](https://registry.khronos.org/vulkan/specs/latest/html/vkspec.html#extendingvulkan-instance-extensions)——非常复杂，可以提供新的命令，结构体和枚举，用于扩展vulkan的功能
 
-<br> <br>
-
 ### VkAllocationCallbacks
 
 内存分配函数——自选内存分配函数
-
-<br> <br>
 
 ## 获取支持的layers和extensions
 
@@ -169,5 +163,8 @@ VK_QUEUE_PROTECTED_BIT = 0x00000010,        //保护内存，仅能被gpu访问�
 
 - [ ]  todo 可以尝试放个图片
 
-### 为逻辑设备选择队列簇
+## 为逻辑设备选择队列簇
 
+```cpp
+vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &graphicsQueue);
+```
