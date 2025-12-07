@@ -18,3 +18,5 @@
 ```
 
 这是vulkan app的配置信息 [VkApplicationInfo](https://docs.vulkan.org/refpages/latest/refpages/source/VkApplicationInfo.html)
+
+sType和pNext是所有vulkan结构体都有的两项，其中sType是用于标识这个结构体类型的一个枚举，pNext是用于拓展这个结构体的。
