@@ -167,9 +167,11 @@ swapchain指的是一串可用于展示的图像，vk在这里会把自己的画
 	VkResult result = vkCreateDevice(physicalDevice, &deviceCreateInfo, nullptr, &logicalDevice);
 ```
 
-### 创建command pool
+---------------------------------------
 
-创建 command pool 的前置条件也都满足，这里先把 command pool 创建了。
+## **尝试创建一个BRDF查找表吧**
+
+### 初始化 Command pool
 
 ```cpp
 	VkCommandPoolCreateInfo cmdPoolInfo = {};
@@ -180,13 +182,47 @@ swapchain指的是一串可用于展示的图像，vk在这里会把自己的画
 	VK_CHECK_RESULT(vkCreateCommandPool(logicalDevice, &cmdPoolInfo, nullptr, &cmdPool));
 ```
 
+### 创建 Command buffers
 
+```cpp
+	VkCommandBufferAllocateInfo cmdBufAllocateInfo{};
+	cmdBufAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	cmdBufAllocateInfo.commandPool = cmdPool;
+	cmdBufAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	cmdBufAllocateInfo.commandBufferCount = static_cast<uint32_t>(commandBuffers.size());
+	VK_CHECK_RESULT(vkAllocateCommandBuffers(device, &cmdBufAllocateInfo, commandBuffers.data()));
+```
+## TODO
+- [ ] 诶，先把代码贴一下睡了明天再说
+- [ ] 确认下这里真的有必要拐弯去做个lut吗
 
+```cpp
+	const VkFormat format = VK_FORMAT_R16G16_SFLOAT;
+	const int32_t dim = 512;
 
-
-
-
-
+	// Image
+	VkImageCreateInfo imageCI{};
+	imageCI.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	imageCI.imageType = VK_IMAGE_TYPE_2D;
+	imageCI.format = format;
+	imageCI.extent.width = dim;
+	imageCI.extent.height = dim;
+	imageCI.extent.depth = 1;
+	imageCI.mipLevels = 1;
+	imageCI.arrayLayers = 1;
+	imageCI.samples = VK_SAMPLE_COUNT_1_BIT;
+	imageCI.tiling = VK_IMAGE_TILING_OPTIMAL;
+	imageCI.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+	VK_CHECK_RESULT(vkCreateImage(device, &imageCI, nullptr, &textures.lutBrdf.image));
+	VkMemoryRequirements memReqs;
+	vkGetImageMemoryRequirements(device, textures.lutBrdf.image, &memReqs);
+	VkMemoryAllocateInfo memAllocInfo{};
+	memAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	memAllocInfo.allocationSize = memReqs.size;
+	memAllocInfo.memoryTypeIndex = vulkanDevice->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	VK_CHECK_RESULT(vkAllocateMemory(device, &memAllocInfo, nullptr, &textures.lutBrdf.deviceMemory));
+	VK_CHECK_RESULT(vkBindImageMemory(device, textures.lutBrdf.image, textures.lutBrdf.deviceMemory, 0));
+```
 
 
 
