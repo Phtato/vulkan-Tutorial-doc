@@ -117,26 +117,68 @@ vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilie
 
 ### 确定创建的队列信息
 
+`VkDeviceQueueCreateInfo`结构体描述对于某个队列族我们要申请几个队列。
+
 ```cpp
     VkDeviceQueueCreateInfo queueInfo{};
     queueInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
     queueInfo.queueFamilyIndex = getQueueFamilyIndex(VK_QUEUE_GRAPHICS_BIT);     // 这里的index指的是返回的队列中排第几个
     queueInfo.queueCount = 1;
-    queueInfo.pQueuePriorities = &defaultQueuePriority;
-    queueCreateInfos.push_back(queueInfo);
+	float queuePriority = 1.0f;
+    queueInfo.pQueuePriorities = &queuePriority;							// 这里是优先级[0,1]，我们就一个，直接1就完了
+
+	std::vector<VkDeviceQueueCreateInfo> queueCreateInfos{};
+	queueCreateInfos.push_back(queueInfo);
 ```
 
+最后把申请的所有队列放到 `VkDeviceQueueCreateInfo` 这个结构体数组中，我们这里就申请一个。
 
+### 创建逻辑设备
 
+先把刚刚创建的申请队列登记在 `deviceCreateInfo` 里面。
 
+```cpp
+	VkDeviceCreateInfo deviceCreateInfo = {};
+	deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+	deviceCreateInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size()); // 上面那个代码块创建的
+	deviceCreateInfo.pQueueCreateInfos = queueCreateInfos.data();					// 上面那个代码块创建的
+	VkPhysicalDeviceFeatures enabledFeatures{};										// 简单项目，没有需求，空就完了
+	deviceCreateInfo.pEnabledFeatures = &enabledFeatures;
+```
 
+然后将需要启用的扩展登记进去
 
+```cpp
+	std::vector<const char*> deviceExtensions;
+	deviceExtensions.push_back("VK_KHR_SWAPCHAIN_EXTENSION_NAME");				// #define VK_KHR_SWAPCHAIN_EXTENSION_NAME   "VK_KHR_swapchain"
+	deviceCreateInfo.enabledExtensionCount = (uint32_t)deviceExtensions.size();
+	deviceCreateInfo.ppEnabledExtensionNames = deviceExtensions.data();
+	/* deviceCreateInfo.enabledLayerCount = 0; */
+```
 
+swapchain指的是一串可用于展示的图像，vk在这里会把自己的画面放在这个swapchain中，然后交给窗口系统，拿去展示在屏幕上
 
+`deviceCreateInfo.enabledLayerCount = 0` 这种写法已经弃用了，现在的写法是在前面 `vkCreateInstance` 创建instance的时候申明，本项目因为验证层用不了，所以没有任何需要的layer。
 
+准备完成，可以创建逻辑设备了。
 
+```cpp
+	VkDevice logicalDevice;
+	VkResult result = vkCreateDevice(physicalDevice, &deviceCreateInfo, nullptr, &logicalDevice);
+```
 
+### 创建command pool
 
+创建 command pool 的前置条件也都满足，这里先把 command pool 创建了。
+
+```cpp
+	VkCommandPoolCreateInfo cmdPoolInfo = {};
+	cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	cmdPoolInfo.queueFamilyIndex = queueFamilyIndex;
+	cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;		// 允许单独重置由该命令池分配的命令缓冲
+	VkCommandPool cmdPool;
+	VK_CHECK_RESULT(vkCreateCommandPool(logicalDevice, &cmdPoolInfo, nullptr, &cmdPool));
+```
 
 
 
