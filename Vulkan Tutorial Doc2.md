@@ -72,7 +72,7 @@ pApplicationInfo就是我们刚刚定义的app的配置信息，
 
 目前不支持
 
-## 选择物理设备和队列族
+## **选择物理设备和队列族**
 
 ### 获取物理设备信息
 
@@ -168,6 +168,106 @@ swapchain指的是一串可用于展示的图像，vk在这里会把自己的画
 ```
 
 ---------------------------------------
+
+## **创建窗口**
+
+### 获取 XComponent 句柄
+
+鸿蒙的窗口创建方法可以参考 https://developer.huawei.com/consumer/cn/doc/harmonyos-references/vulkan-guidelines 
+
+首先在ARKTS侧添加代码
+
+```ts
+	XComponent({ id: 'xcomponentId', type: XComponentType.SURFACE, libraryname: 'entry' })
+```
+
+然后在cpp侧的napi_init.cpp中的 `static napi_value Init(napi_env env, napi_value exports)` 函数末尾添加如下代码
+
+```cpp
+    napi_value exportInstance = nullptr;
+    // 用来解析出被wrap了NativeXComponent指针的属性
+    napi_get_named_property(env, exports, OH_NATIVE_XCOMPONENT_OBJ, &exportInstance);
+    OH_NativeXComponent *nativeXComponent = nullptr;
+    // 通过napi_unwrap接口，解析出NativeXComponent的实例指针
+    napi_unwrap(env, exportInstance, reinterpret_cast<void **>(&nativeXComponent));
+    // 获取XComponentId
+    char idStr[OH_XCOMPONENT_ID_LEN_MAX + 1] = {};
+    uint64_t idSize = OH_XCOMPONENT_ID_LEN_MAX + 1;
+    OH_NativeXComponent_GetXComponentId(nativeXComponent, idStr, &idSize);
+
+    callback.OnSurfaceCreated = VulkanApplication::OnSurfaceCreatedCB;
+    callback.OnSurfaceDestroyed = VulkanApplication::OnDestroyCB;
+    OH_NativeXComponent_RegisterCallback(nativeXComponent, &callback);
+```
+
+这段代码是从组件中找到我们刚刚创建的 XComponent，然后获取实例。并且向其生命周期的开始和释放注册两个回调函数。
+
+- **OnSurfaceCreatedCB**
+	```cpp
+	// XComponent在创建Surface时的回调函数
+	void VulkanExampleBase::OnSurfaceCreatedCB(OH_NativeXComponent *component, void *window) {
+	    // 在回调函数里可以拿到OHNativeWindow
+	    VulkanExampleBase::window = static_cast<OHNativeWindow *>(window);
+	
+	    VulkanExampleBase::isDestroy = false;
+	}
+	```
+- **OnDestroyCB**
+	```cpp
+	void VulkanExampleBase::OnDestroyCB(OH_NativeXComponent *component, void *window) { isDestroy = true; }
+ 	```
+
+`OnSurfaceCreatedCB` 函数用来获取窗口，同时将 `isDestroy` 赋值false，用来表示当前窗口创建完毕。
+
+`OnDestroyCB` 函数只需要简单的将 `isDestroy` 置为true即可，在后续的renderLoop中通过确认这个值来知道是否应该停止渲染。
+
+最后在cmakelists中引入 `libnative_window.so` 即可。
+
+*注意：需要注意获取window的句柄需要在vulkan初始化之前完成，否则会导致vulkan初始化报错*
+
+这里提供一个模版 [https://github.com/Phtato/vk-NDK-Example.git](https://github.com/Phtato/vk-NDK-Example.git) ，这个模版实现了window，资源管理器的句柄获取，沙盒路径获取，cout的输出重定向这几个功能。
+
+### 创建 surface
+```cpp
+	VkSurfaceKHR surface = VK_NULL_HANDLE;
+	const VkSurfaceCreateInfoOHOS create_info{
+		.sType = VK_STRUCTURE_TYPE_SURFACE_CREATE_INFO_OHOS, .pNext = nullptr, .flags = 0, .window = window};	 
+	err = vkCreateSurfaceOHOS(instance, &create_info, nullptr, &surface);
+```
+
+调用 `vkCreateSurfaceOHOS` 创建surface即可。
+
+### 确认队列族呈现能力支持情况
+
+先确认是否支持呈现，然后找到支持的队列。下面的代码和之前的很类似，这小节跳过不看都行，不关键。
+
+```cpp
+	uint32_t queueCount;
+	vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueCount, NULL);
+
+	std::vector<VkQueueFamilyProperties> queueProps(queueCount);
+	vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, &queueCount, queueProps.data());
+```
+
+上面这个写法已经很熟悉了（我都觉得可以写成模版了），和前面是一模一样的，总之是获取 VkQueueFamilyProperties，然后确认支不支持present。
+
+```cpp
+	std::vector<VkBool32> supportsPresent(queueCount);
+	for (uint32_t i = 0; i < queueCount; i++)
+	{
+		fpGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, i, surface, &supportsPresent[i]);
+	}
+```
+
+这边就省略些代码了，总之就是测试是否支持 present（Linux或者一些特别的平台会出现将graphics和present分开在两个不同的队列之中）。
+
+### 创建呈现队列
+
+通过 `vkGetPhysicalDeviceSurfaceFormatsKHR` 接口来获取支持的颜色格式，要配置HDR的话就在这里查询是否支持。（鸿蒙是支持的，但是我这里都没配）
+
+通过 `vkGetPhysicalDeviceSurfacePresentModesKHR` 接口来获取支持的呈现模式，如果要配置垂直同步就用这个接口来查询是否支持 `VK_PRESENT_MODE_MAILBOX_KHR`，方法和前面的类似，不再赘述。
+
+
 
 ## **尝试创建一个BRDF查找表吧**
 
