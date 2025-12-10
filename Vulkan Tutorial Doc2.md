@@ -309,6 +309,16 @@ swapchain指的是一串可用于展示的图像，vk在这里会把自己的画
 	swapchainCI.compositeAlpha = compositeAlpha;						// 表示我们不会对下面的窗口的颜色进行混色，需要通过vkGetPhysicalDeviceSurfaceCapabilitiesKHR查询支不支持
 ```
 
+至此我们完成了对swapChain的配置，可以创建swapChian了
+
+```cpp
+	VkSwapchainKHR swapChain = VK_NULL_HANDLE;
+	vkCreateSwapchainKHR(device, &swapchainCI, nullptr, &swapChain);
+```
+
+### 检索swap chain images
+
+`std::vector<VkImage> swapChainImages` 
 
 
 ## **尝试创建一个BRDF查找表吧**
