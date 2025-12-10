@@ -2,7 +2,7 @@
 
 参考资料主要是 [vulkan tutorial](https://vulkan-tutorial.com/Drawing_a_triangle/Setup/Instance) 和 [vulkan guide](https://vkguide.dev/docs/new_chapter_0/code_walkthrough/)。同时这里推荐[Khronos Vulkan® Tutorial](https://docs.vulkan.org/tutorial/latest/00_Introduction.html)，这篇更加现代，使用的vk 1.4版本，使用动态渲染而非渲染通道，使用了raii等技术，我目前还没看完，后续有空会更新本篇文章，改为主要参考这篇更新的文章。
 
-前期主要是对vulkan的配置，模板代码居多，vulkan guide使用vkbootstrap来简化vulkan的初始化过程，但是这个库未适配鸿蒙平台，所以这里主要参考vulkan tutorial的代码。      
+前期主要是对vulkan的配置，模板代码居多，vulkan guide使用vkbootstrap来简化vulkan的初始化过程，但是这个库未适配鸿蒙平台，所以这里主要参考vulkan tutorial的代码。本文主要针对vulkan配置流程的梳理，照着本文写代码是不可能写出来的。
 
 ## 创建vulkan实例
 
@@ -167,6 +167,18 @@ swapchain指的是一串可用于展示的图像，vk在这里会把自己的画
 	VkResult result = vkCreateDevice(physicalDevice, &deviceCreateInfo, nullptr, &logicalDevice);
 ```
 
+### 创建 Command buffers
+
+```cpp
+	VkCommandBufferAllocateInfo cmdBufAllocateInfo{};
+	cmdBufAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	cmdBufAllocateInfo.commandPool = cmdPool;
+	cmdBufAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	cmdBufAllocateInfo.commandBufferCount = static_cast<uint32_t>(commandBuffers.size());
+	VK_CHECK_RESULT(vkAllocateCommandBuffers(device, &cmdBufAllocateInfo, commandBuffers.data()));
+```
+- [ ] todo 这里还没写，确认下这段放哪里合适
+
 ---------------------------------------
 
 ## **创建窗口**
@@ -204,7 +216,6 @@ swapchain指的是一串可用于展示的图像，vk在这里会把自己的画
 
 - **OnSurfaceCreatedCB**
 	```cpp
-	// XComponent在创建Surface时的回调函数
 	void VulkanExampleBase::OnSurfaceCreatedCB(OH_NativeXComponent *component, void *window) {
 	    // 在回调函数里可以拿到OHNativeWindow
 	    VulkanExampleBase::window = static_cast<OHNativeWindow *>(window);
@@ -225,7 +236,7 @@ swapchain指的是一串可用于展示的图像，vk在这里会把自己的画
 
 *注意：需要注意获取window的句柄需要在vulkan初始化之前完成，否则会导致vulkan初始化报错*
 
-这里提供一个模版 [https://github.com/Phtato/vk-NDK-Example.git](https://github.com/Phtato/vk-NDK-Example.git) ，这个模版实现了window，资源管理器的句柄获取，沙盒路径获取，cout的输出重定向这几个功能。
+这里提供一个模版 [vk-NDK-Example](https://github.com/Phtato/vk-NDK-Example.git) ，这个模版实现了window，资源管理器的句柄获取，沙盒路径获取，cout的输出重定向这几个功能。
 
 ### 创建 surface
 ```cpp
@@ -255,7 +266,7 @@ swapchain指的是一串可用于展示的图像，vk在这里会把自己的画
 	std::vector<VkBool32> supportsPresent(queueCount);
 	for (uint32_t i = 0; i < queueCount; i++)
 	{
-		fpGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, i, surface, &supportsPresent[i]);
+		vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, i, surface, &supportsPresent[i]);
 	}
 ```
 
@@ -263,9 +274,40 @@ swapchain指的是一串可用于展示的图像，vk在这里会把自己的画
 
 ### 创建呈现队列
 
-通过 `vkGetPhysicalDeviceSurfaceFormatsKHR` 接口来获取支持的颜色格式，要配置HDR的话就在这里查询是否支持。（鸿蒙是支持的，但是我这里都没配）
+通过 `vkGetPhysicalDeviceSurfaceCapabilitiesKHR` 接口获取物理设备的属性，这些属性的类型是 `VkSurfaceCapabilitiesKHR`，
+我们这里关注的属性有
+- `currentExtent.width` 和 `currentExtent.height` 两个参数，这两个参数决定了窗口的大小。
+- `minImageCount` 和 `maxImageCount` 用于呈现的image序列在一些设备上会有个最小值，必须从这个数之后开始。
+- `currentTransform` 配置最终显示的变换的，这里一般默认就行。
+- `supportedCompositeAlpha` 配置是否需要和窗口背后的颜色进行混色。
+- `colorSpace` 色彩空间
+
+通过 `vkGetPhysicalDeviceSurfaceFormatsKHR` 接口来获取支持的颜色格式和颜色空间，要配置HDR的话就在这里查询是否支持。（鸿蒙是支持的，但是我这里都没配）
 
 通过 `vkGetPhysicalDeviceSurfacePresentModesKHR` 接口来获取支持的呈现模式，如果要配置垂直同步就用这个接口来查询是否支持 `VK_PRESENT_MODE_MAILBOX_KHR`，方法和前面的类似，不再赘述。
+
+上面提到的特性支持情况的代码我就省略了，就是文章中反复出现的写法。
+
+```cpp
+	VkSwapchainCreateInfoKHR swapchainCI = {};
+	swapchainCI.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+	swapchainCI.pNext = NULL;
+	swapchainCI.surface = surface;										// 这是通过 vkCreateSurfaceOHOS 返回的，可以理解成窗口的句柄
+	swapchainCI.minImageCount = desiredNumberOfSwapchainImages;			// 呈现队列的最小序号
+	swapchainCI.imageFormat = colorFormat;								// 通过 vkGetPhysicalDeviceSurfaceFormatsKHR 获取，配置颜色格式，ARGB还是RGBA还是A2R10G10B10
+	swapchainCI.imageColorSpace = colorSpace;							// 色彩空间，和上面这项一起获取的
+	swapchainCI.imageExtent = { extent.width, extent.height };			// 通过vkGetPhysicalDeviceSurfaceCapabilitiesKHR获取的 实际的宽高
+	swapchainCI.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;		// 这个代表渲直接在swapchain image上绘制
+	swapchainCI.preTransform = (VkSurfaceTransformFlagBitsKHR)preTransform;	//前面通过vkGetPhysicalDeviceSurfaceCapabilitiesKHR拿到的currentTransform
+	swapchainCI.imageArrayLayers = 1;									// 表示每个图像包含的层次，除非开发vr项目，不然这个一般都是1
+	swapchainCI.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;			// graphics 和 present 在同一族，该项表示图像由单一队列族独占
+	swapchainCI.queueFamilyIndexCount = 0;								// 表示不与其他队列族共享
+	swapchainCI.pQueueFamilyIndices = NULL;								// 表示不与其他队列族共享
+	swapchainCI.presentMode = swapchainPresentMode;						// 前面通过 vkGetPhysicalDeviceSurfacePresentModesKHR 接口获取的
+	swapchainCI.oldSwapchain = oldSwapchain;							// 表明是从旧的改造而来还是新建的
+	swapchainCI.clipped = VK_TRUE;										// 表示如果当前像素被其他窗口遮挡了，要不要丢弃这些像素
+	swapchainCI.compositeAlpha = compositeAlpha;						// 表示我们不会对下面的窗口的颜色进行混色，需要通过vkGetPhysicalDeviceSurfaceCapabilitiesKHR查询支不支持
+```
 
 
 
@@ -282,16 +324,7 @@ swapchain指的是一串可用于展示的图像，vk在这里会把自己的画
 	VK_CHECK_RESULT(vkCreateCommandPool(logicalDevice, &cmdPoolInfo, nullptr, &cmdPool));
 ```
 
-### 创建 Command buffers
 
-```cpp
-	VkCommandBufferAllocateInfo cmdBufAllocateInfo{};
-	cmdBufAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	cmdBufAllocateInfo.commandPool = cmdPool;
-	cmdBufAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	cmdBufAllocateInfo.commandBufferCount = static_cast<uint32_t>(commandBuffers.size());
-	VK_CHECK_RESULT(vkAllocateCommandBuffers(device, &cmdBufAllocateInfo, commandBuffers.data()));
-```
 ## TODO
 - [ ] 诶，先把代码贴一下睡了明天再说
 - [ ] 确认下这里真的有必要拐弯去做个lut吗
