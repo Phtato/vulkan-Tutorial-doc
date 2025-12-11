@@ -316,10 +316,18 @@ swapchain指的是一串可用于展示的图像，vk在这里会把自己的画
 	vkCreateSwapchainKHR(device, &swapchainCI, nullptr, &swapChain);
 ```
 
-### 检索swap chain images
+### 创建Image views
 
-`std::vector<VkImage> swapChainImages` 
+先通过 `vkGetSwapchainImagesKHR` 获取 `VkImage` 数组。在创建一个等长的 `VkImageView` 
 
+```cpp
+	std::vector<VkImage> images;
+	/* init images ... */
+
+	std::vector<VkImageView> swapChainImageViews;
+
+
+```
 
 ## **尝试创建一个BRDF查找表吧**
 
