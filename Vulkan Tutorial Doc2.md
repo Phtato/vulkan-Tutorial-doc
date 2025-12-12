@@ -167,18 +167,6 @@ swapchain指的是一串可用于展示的图像，vk在这里会把自己的画
 	VkResult result = vkCreateDevice(physicalDevice, &deviceCreateInfo, nullptr, &logicalDevice);
 ```
 
-### 创建 Command buffers
-
-```cpp
-	VkCommandBufferAllocateInfo cmdBufAllocateInfo{};
-	cmdBufAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	cmdBufAllocateInfo.commandPool = cmdPool;
-	cmdBufAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	cmdBufAllocateInfo.commandBufferCount = static_cast<uint32_t>(commandBuffers.size());
-	VK_CHECK_RESULT(vkAllocateCommandBuffers(device, &cmdBufAllocateInfo, commandBuffers.data()));
-```
-- [ ] todo 这里还没写，确认下这段放哪里合适
-
 ---------------------------------------
 
 ## **创建窗口**
@@ -277,7 +265,7 @@ swapchain指的是一串可用于展示的图像，vk在这里会把自己的画
 通过 `vkGetPhysicalDeviceSurfaceCapabilitiesKHR` 接口获取物理设备的属性，这些属性的类型是 `VkSurfaceCapabilitiesKHR`，
 我们这里关注的属性有
 - `currentExtent.width` 和 `currentExtent.height` 两个参数，这两个参数决定了窗口的大小。
-- `minImageCount` 和 `maxImageCount` 用于呈现的image序列在一些设备上会有个最小值，必须从这个数之后开始。
+- `minImageCount` 和 `maxImageCount` 用于呈现的image数量在一些设备上会有个最小值，申请的数量必须比这个大。
 - `currentTransform` 配置最终显示的变换的，这里一般默认就行。
 - `supportedCompositeAlpha` 配置是否需要和窗口背后的颜色进行混色。
 - `colorSpace` 色彩空间
@@ -293,7 +281,7 @@ swapchain指的是一串可用于展示的图像，vk在这里会把自己的画
 	swapchainCI.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
 	swapchainCI.pNext = NULL;
 	swapchainCI.surface = surface;										// 这是通过 vkCreateSurfaceOHOS 返回的，可以理解成窗口的句柄
-	swapchainCI.minImageCount = desiredNumberOfSwapchainImages;			// 呈现队列的最小序号
+	swapchainCI.minImageCount = desiredNumberOfSwapchainImages;			// 呈现队列的最小数量
 	swapchainCI.imageFormat = colorFormat;								// 通过 vkGetPhysicalDeviceSurfaceFormatsKHR 获取，配置颜色格式，ARGB还是RGBA还是A2R10G10B10
 	swapchainCI.imageColorSpace = colorSpace;							// 色彩空间，和上面这项一起获取的
 	swapchainCI.imageExtent = { extent.width, extent.height };			// 通过vkGetPhysicalDeviceSurfaceCapabilitiesKHR获取的 实际的宽高
@@ -316,20 +304,74 @@ swapchain指的是一串可用于展示的图像，vk在这里会把自己的画
 	vkCreateSwapchainKHR(device, &swapchainCI, nullptr, &swapChain);
 ```
 
-### 创建Image views
+### 创建给swapchain用的vkImage
 
-先通过 `vkGetSwapchainImagesKHR` 获取 `VkImage` 数组。在创建一个等长的 `VkImageView` 
+需要先实例化一组VkImage类型，这是swapchain所拥有的呈现图像，先通过 `vkGetSwapchainImagesKHR` 获取 `VkImage` 数组。这里的imageCount一般是我们刚刚配置的 minImageCount。
 
 ```cpp
 	std::vector<VkImage> images;
-	/* init images ... */
-
-	std::vector<VkImageView> swapChainImageViews;
-
-
+	vkGetSwapchainImagesKHR(device, swapChain, &imageCount, NULL);
+	images.resize(imageCount);
+	vkGetSwapchainImagesKHR(device, swapChain, &imageCount, images.data());
 ```
 
-## **尝试创建一个BRDF查找表吧**
+### 给每个vkImage配置image View
+
+上面我们创建了一串vkImage，每个vkImage都需要配置image格式。可以理解成是在配置如何看这张图像。
+
+我们详细来看看都有哪些配置项
+
+```cpp
+	VkImageViewCreateInfo colorAttachmentView = {};
+	colorAttachmentView.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	colorAttachmentView.pNext = NULL;
+	colorAttachmentView.format = colorFormat;					// 颜色格式，是我们刚刚配置给swapChain的颜色格式
+	colorAttachmentView.components = {							// 分量重映射，用来重新映射rgba四个分量，也可以将某个值配置为恒为1或0
+		VK_COMPONENT_SWIZZLE_R,
+		VK_COMPONENT_SWIZZLE_G,
+		VK_COMPONENT_SWIZZLE_B,
+		VK_COMPONENT_SWIZZLE_A
+	};
+/*
+	colorAttachmentView.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;	// 按自然分量来，感觉就是默认
+	colorAttachmentView.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+	colorAttachmentView.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+	colorAttachmentView.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+*/
+	colorAttachmentView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;	//这里是配置mipmap的，这里不涉及
+	colorAttachmentView.subresourceRange.baseMipLevel = 0;
+	colorAttachmentView.subresourceRange.levelCount = 1;
+	colorAttachmentView.subresourceRange.baseArrayLayer = 0;
+	colorAttachmentView.subresourceRange.layerCount = 1;
+	colorAttachmentView.viewType = VK_IMAGE_VIEW_TYPE_2D;			// 表示为以2D的形式理解这个图片，除此之外也可以按照3D或者cube map
+	colorAttachmentView.flags = 0;									// 配置扩展属性，这里不涉及
+	colorAttachmentView.image = images[i];							// 将配置和图像绑定
+```
+
+## 加载 shader
+
+鸿蒙的文件加载会有所不同，我暂时也没找到最佳实践，处于一个能用就行的状态，具体还是可以参考[vk-NDK-Example](https://github.com/Phtato/vk-NDK-Example.git)。
+
+### 文件加载
+
+我们需要从arkts侧传递两个东西至CPP侧，一个是resourceManager，一个是sandboxPath。前者是C/CPP侧获取资源的接口，后者是沙盒文件路径。
+
+```ts
+	context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+	
+```
+
+### 创建 Command buffers
+
+```cpp
+	VkCommandBufferAllocateInfo cmdBufAllocateInfo{};
+	cmdBufAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	cmdBufAllocateInfo.commandPool = cmdPool;
+	cmdBufAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	cmdBufAllocateInfo.commandBufferCount = static_cast<uint32_t>(commandBuffers.size());
+	VK_CHECK_RESULT(vkAllocateCommandBuffers(device, &cmdBufAllocateInfo, commandBuffers.data()));
+```
+- [ ] todo 这里还没写，确认下这段放哪里合适
 
 ### 初始化 Command pool
 
