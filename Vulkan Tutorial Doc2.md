@@ -354,14 +354,168 @@ swapchain指的是一串可用于展示的图像，vk在这里会把自己的画
 
 ### 文件加载
 
-我们需要从arkts侧传递两个东西至CPP侧，一个是resourceManager，一个是sandboxPath。前者是C/CPP侧获取资源的接口，后者是沙盒文件路径。
+我们需要从arkts侧传递两个东西至CPP侧，一个是resourceManager，一个是sandboxPath。前者是C/CPP侧获取资源的句柄，后者是沙盒文件路径。
+
+我们先来写cpp侧接收句柄和路径的函数，下面是接收resourc Manager句柄的函数。这里不展开讲，下述代码也仅供参考。详细可以看[NDK开发导读](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/ndk-development-overview)
+
+```cpp
+constexpr size_t EXPECTED_PARAMS = 1UL
+
+napi_value createResourceManagerInstance(napi_env env, napi_callback_info info) {
+    size_t argc = EXPECTED_PARAMS;
+    napi_value argv[EXPECTED_PARAMS]{};
+
+    auto result = napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr);
+
+    if (NativeResourceManager *rm = OH_ResourceManager_InitNativeResourceManager(env, argv[0]); rm) {
+        AssetMgr = rm; // 这个AssetMgr就是后面要用resource manager句柄
+    }
+
+    return nullptr;
+}
+```
+
+以下是获取sandboxpath的函数，仅供参考。
+
+```cpp
+napi_value TransferSandboxPath(napi_env env, napi_callback_info info) {
+    size_t argc = 1;
+    napi_value argv[1] = {nullptr};
+    napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr);
+
+    size_t pathSize, contentsSize;
+    char pathBuf[256];
+    napi_get_value_string_utf8(env, argv[0], pathBuf, sizeof(pathBuf), &pathSize);
+    ohosPath = pathBuf;
+
+    return nullptr;
+}
+```
+
+```cpp
+// entry/src/main/cpp/types/libentry/Index.d.ts
+// 添加以下内容
+
+export const transferSandboxPath: (path: string) => void;
+export const sendResourceManagerInstance:(resourceManager: resourceManager.ResourceManager) => void;
+
+// entry/src/main/cpp/napi_init.cpp
+// 在desc[]中添加以下内容
+
+    napi_property_descriptor desc[] = {
+        {"transferSandboxPath", nullptr, &VulkanApplication::TransferSandboxPath, nullptr, nullptr, nullptr, napi_default, nullptr} ,
+        {"sendResourceManagerInstance", nullptr, &VulkanApplication::createResourceManagerInstance, nullptr, nullptr, nullptr, napi_default, nullptr}
+    };
+```
+
+以下是arkts侧调用的代码。
 
 ```ts
 	context = this.getUIContext().getHostContext() as common.UIAbilityContext;
-	
+  	let sandboxPath = this.context.filesDir;
+	testNapi.transferSandboxPath(sandboxPath);
+	testNapi.sendResourceManagerInstance(this.context.resourceManager)
 ```
 
-### 创建 Command buffers
+### 文件加载函数
+
+以下给出一个鸿蒙文件加载函数的一个基础参考，代码很简单，这里不多解释了。相关资料参考[raw_file_manager](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/capi-raw-file-manager-h#%E6%A6%82%E8%BF%B0)
+
+```cpp
+    std::vector<char> readFile(const std::string &assetFilePath) {
+        std::vector<char> asset;
+        RawFile *file = OH_ResourceManager_OpenRawFile(m_aAssetMgr, assetFilePath.c_str());
+        if (!file) {
+            throw std::runtime_error("open file failed");
+            return asset;
+        }
+        size_t len = static_cast<size_t>(OH_ResourceManager_GetRawFileSize(file));
+        if (len <= 0) {
+            throw std::runtime_error("OHOS shader asset %s len %zu too small!");
+            return asset;
+        }
+
+        asset.resize(len);
+        OH_ResourceManager_ReadRawFile(file, asset.data(), len);
+        OH_ResourceManager_CloseRawFile(file);
+
+        return asset;
+    }
+```
+
+### shader介绍
+
+当前的目标为画一个三角形，这里仅简单给出和解释下本次流程的shader代码。
+
+下面是vertex shader，先简单的硬编码
+
+```hlsl
+// Vertex shader
+
+// 这个是Vertex shader的输出，我们这个非常简单，输出的颜色按照位置决定
+layout(location = 0) out vec3 fragColor;
+
+// 硬编码的三个顶点的位置
+vec2 positions[3] = vec2[](
+    vec2(0.0, -0.5),
+    vec2(0.5, 0.5),
+    vec2(-0.5, 0.5)
+);
+
+// 每个顶点的颜色
+vec3 colors[3] = vec3[](
+    vec3(1.0, 0.0, 0.0),
+    vec3(0.0, 1.0, 0.0),
+    vec3(0.0, 0.0, 1.0)
+);
+
+void main() {
+	// gl_VertexIndex 是内置的顶点计数
+	// gl_Position 是决定顶点的位置
+    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
+    fragColor = colors[gl_VertexIndex];
+}
+```
+
+这里只需要简单的把传过来的颜色赋值就完了，剩下的会自己插值的。
+
+```hlsl
+// Fragment shader
+
+layout(location = 0) in vec3 fragColor;
+
+layout(location = 0) out vec4 outColor;
+
+void main() {
+    outColor = vec4(fragColor, 1.0);
+}
+```
+
+### shader 编译
+
+通过以下两个指令进行编译，需要配置glslc的环境。
+
+```shell
+glslc -fshader-stage=vert path/to/shaders/shader.vert -o path/to/resources/rawfile/vert.spv
+glslc -fshader-stage=frag path/to/shaders/shader.frag -o path/to/resources/rawfile/frag.spv
+```
+
+*注意：不建议将这个放到cmakelists里执行，deveco编译的执行顺序是先将所有的resource打包，然后再编译CPP文件，这会导致本次的shader的修改不会被带到这个本次修改中*
+
+### 加载 shader
+
+前面已经做好了准备，这里来加载shader文件吧。
+
+这里的readFile是前面 [文件加载函数](#文件加载函数) 章节的。
+
+```cpp
+    auto vertShaderCode = readFile("shaders/vert.spv");
+    auto fragShaderCode = readFile("shaders/frag.spv");
+```
+
+-----------
+
+## 创建 Command buffers
 
 ```cpp
 	VkCommandBufferAllocateInfo cmdBufAllocateInfo{};
