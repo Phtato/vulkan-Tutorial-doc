@@ -348,7 +348,7 @@ swapchain指的是一串可用于展示的图像，vk在这里会把自己的画
 	colorAttachmentView.image = images[i];							// 将配置和图像绑定
 ```
 
-## 加载 shader
+## 加载 shader 文件
 
 鸿蒙的文件加载会有所不同，我暂时也没找到最佳实践，处于一个能用就行的状态，具体还是可以参考[vk-NDK-Example](https://github.com/Phtato/vk-NDK-Example.git)。
 
@@ -403,8 +403,8 @@ export const sendResourceManagerInstance:(resourceManager: resourceManager.Resou
 // 在desc[]中添加以下内容
 
     napi_property_descriptor desc[] = {
-        {"transferSandboxPath", nullptr, &VulkanApplication::TransferSandboxPath, nullptr, nullptr, nullptr, napi_default, nullptr} ,
-        {"sendResourceManagerInstance", nullptr, &VulkanApplication::createResourceManagerInstance, nullptr, nullptr, nullptr, napi_default, nullptr}
+        {"transferSandboxPath", nullptr, &TransferSandboxPath, nullptr, nullptr, nullptr, napi_default, nullptr} ,
+        {"sendResourceManagerInstance", nullptr, &createResourceManagerInstance, nullptr, nullptr, nullptr, napi_default, nullptr}
     };
 ```
 
@@ -424,7 +424,8 @@ export const sendResourceManagerInstance:(resourceManager: resourceManager.Resou
 ```cpp
     std::vector<char> readFile(const std::string &assetFilePath) {
         std::vector<char> asset;
-        RawFile *file = OH_ResourceManager_OpenRawFile(m_aAssetMgr, assetFilePath.c_str());
+		auto filePath = sandboxPath + assetFilePath;
+        RawFile *file = OH_ResourceManager_OpenRawFile(m_aAssetMgr, filePath.c_str());
         if (!file) {
             throw std::runtime_error("open file failed");
             return asset;
@@ -512,6 +513,9 @@ glslc -fshader-stage=frag path/to/shaders/shader.frag -o path/to/resources/rawfi
     auto vertShaderCode = readFile("shaders/vert.spv");
     auto fragShaderCode = readFile("shaders/frag.spv");
 ```
+
+## 创建 shader module
+
 
 -----------
 
