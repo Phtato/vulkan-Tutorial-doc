@@ -2,7 +2,9 @@
 
 参考资料主要是 [vulkan tutorial](https://vulkan-tutorial.com/Drawing_a_triangle/Setup/Instance) 和 [vulkan guide](https://vkguide.dev/docs/new_chapter_0/code_walkthrough/)。同时这里推荐[Khronos Vulkan® Tutorial](https://docs.vulkan.org/tutorial/latest/00_Introduction.html)，这篇更加现代，使用的vk 1.4版本，使用动态渲染而非渲染通道，使用了raii等技术，我目前还没看完，后续有空会更新本篇文章，改为主要参考这篇更新的文章。
 
-前期主要是对vulkan的配置，模板代码居多，vulkan guide使用vkbootstrap来简化vulkan的初始化过程，但是这个库未适配鸿蒙平台，所以这里主要参考vulkan tutorial的代码。本文主要针对vulkan配置流程的梳理，照着本文写代码是不可能写出来的。
+前期主要是对vulkan的配置，模板代码居多，vulkan guide使用vkbootstrap来简化vulkan的初始化过程，但是这个库未适配鸿蒙平台，所以这里主要参考vulkan tutorial的代码。
+
+*注意：本文主要针对vulkan配置的流程梳理，照着本文写代码是不可能写出来的。为了简单起见，本文也完全没提内存释放相关的内容*
 
 ## 创建vulkan实例
 
@@ -444,13 +446,15 @@ export const sendResourceManagerInstance:(resourceManager: resourceManager.Resou
     }
 ```
 
-### shader介绍
+## shader
+
+vulkan 允许你使用GLSL、HLSL编写代码，编译器会把代码翻译成字节码 SPIR-V。下面的 shader 均采用GLSL。
 
 当前的目标为画一个三角形，这里仅简单给出和解释下本次流程的shader代码。
 
 下面是vertex shader，先简单的硬编码
 
-```hlsl
+```glsl
 // Vertex shader
 
 // 这个是Vertex shader的输出，我们这个非常简单，输出的颜色按照位置决定
@@ -480,7 +484,7 @@ void main() {
 
 这里只需要简单的把传过来的颜色赋值就完了，剩下的会自己插值的。
 
-```hlsl
+```glsl
 // Fragment shader
 
 layout(location = 0) in vec3 fragColor;
@@ -505,7 +509,7 @@ glslc -fshader-stage=frag path/to/shaders/shader.frag -o path/to/resources/rawfi
 
 ### 加载 shader
 
-前面已经做好了准备，这里来加载shader文件吧。
+前面已经做好了准备，这里来加载 shader 文件吧。
 
 这里的readFile是前面 [文件加载函数](#文件加载函数) 章节的。
 
@@ -514,8 +518,66 @@ glslc -fshader-stage=frag path/to/shaders/shader.frag -o path/to/resources/rawfi
     auto fragShaderCode = readFile("shaders/frag.spv");
 ```
 
-## 创建 shader module
+### 创建 shader module
+`VkShaderModule`相当于是 shader 文件的句柄，我们需要在这个结构体中绑定 shader 和配置。
 
+```cpp
+VkShaderModuleCreateInfo createInfo{};
+createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+createInfo.codeSize = code.size();
+createInfo.pCode = reinterpret_cast<const uint32_t*>(shaderCode.data());
+VkShaderModule shaderModule;
+vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule)
+```
+
+我们这里需要创建 vertex 和 fragment 两个 shader module。
+
+### shader stage 创建
+
+不同的 shader 在不同的 pipeline 阶段发挥作用，我们这里需要给我们的 shader 绑定到这些特定的阶段上。
+
+我们有 vertex 和 fragment 两个阶段的shader，这里需要创建两个 shaderStage。
+
+```cpp
+	// vertex stage
+	VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
+	vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;		// 这里的 stage 是一个枚举，标志一个管线的阶段
+	vertShaderStageInfo.module = vertShaderModule;				// 这个是我们上面创建的shader module
+	vertShaderStageInfo.pName = "main";							// 此阶段着色器入口点名称，没看懂
+```
+
+```cpp
+	VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
+	fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+	fragShaderStageInfo.module = fragShaderModule;
+	fragShaderStageInfo.pName = "main";
+```
+
+总结一下，流程为：先把 glsl 翻译成 SPIR-V，以 char 字节流的形式加载这些数据，绑定到 shader module 中，最后再把 module 封装到 shader stage中，确定这些shader发挥作用的阶段。
+
+## 固定功能管线
+
+老式图形接口有很多固定功能是隐式配置的，vulkan则要求这些必须显式配置，这些配置绝大部分都是配置完成后不可动态变更的。本章节就是完成这些配置。
+
+### 动态状态
+
+前面说有些是可以动态变更的，这里我们就先来配置哪些是可以动态变更的
+
+```cpp
+std::vector<VkDynamicState> dynamicStates = {
+    VK_DYNAMIC_STATE_VIEWPORT,
+    VK_DYNAMIC_STATE_SCISSOR
+};
+
+VkPipelineDynamicStateCreateInfo dynamicState{};
+dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
+dynamicState.pDynamicStates = dynamicStates.data();
+```
+
+`VkDynamicState`是一个枚举，包含了所有的可能的动态
 
 -----------
 
