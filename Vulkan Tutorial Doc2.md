@@ -577,7 +577,7 @@ dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
 dynamicState.pDynamicStates = dynamicStates.data();
 ```
 
-`VkDynamicState`是一个枚举，包含了所有的可能的动态
+`VkDynamicState` 是一个枚举，包含了所有的可能的动态
 
 -----------
 
