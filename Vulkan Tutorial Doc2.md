@@ -559,16 +559,16 @@ vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule)
 
 ## 固定功能管线
 
-老式图形接口有很多固定功能是隐式配置的，vulkan则要求这些必须显式配置，这些配置绝大部分都是配置完成后不可动态变更的。本章节就是完成这些配置。
+老式图形接口有很多固定功能是隐式配置的，vulkan则要求这些必须显式配置，这些配置绝大部分都是配置完成后不可动态变更的。可以动态变更的的状态可以在命令录制期间通过vCmdSet*来配置。
 
 ### 动态状态
 
-前面说有些是可以动态变更的，这里我们就先来配置哪些是可以动态变更的
+前面说有些是可以动态变更的，这里我们就先来配置本项目哪些是可以动态变更的。
 
 ```cpp
 std::vector<VkDynamicState> dynamicStates = {
-    VK_DYNAMIC_STATE_VIEWPORT,
-    VK_DYNAMIC_STATE_SCISSOR
+    VK_DYNAMIC_STATE_VIEWPORT,	//视口
+    VK_DYNAMIC_STATE_SCISSOR	//裁剪框
 };
 
 VkPipelineDynamicStateCreateInfo dynamicState{};
@@ -577,7 +577,13 @@ dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
 dynamicState.pDynamicStates = dynamicStates.data();
 ```
 
-`VkDynamicState` 是一个枚举，包含了所有的可能的动态
+`VkDynamicState` 是一个枚举，包含了所有的可能的动态。虽然教程中添加了对于视口和裁剪框的动态，看起来也是支持了窗口的动态变化。但是实测在折叠屏上，窗口大小变化后会直接闪退，暂未计划解决。
+
+### 顶点输入（初步配置）
+
+目前只是画个三角形，shader硬编码了顶点位置，目前无需传入顶点位置，先完成初步配置。
+
+
 
 -----------
 
@@ -637,8 +643,10 @@ dynamicState.pDynamicStates = dynamicStates.data();
 	VK_CHECK_RESULT(vkBindImageMemory(device, textures.lutBrdf.image, textures.lutBrdf.deviceMemory, 0));
 ```
 
+# TODOLIST
 
-
+- [ ] [动态状态](#动态状态) 动态状态细节补充、和折叠屏内外屏转换是否有关
+- [ ] 
 
 
 
