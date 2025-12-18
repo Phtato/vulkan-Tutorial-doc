@@ -356,6 +356,8 @@ swapchain指的是一串可用于展示的图像，vk在这里会把自己的画
 
 ### 文件加载
 
+- [ ] 这里有错漏，copy的部份没讲，还得加个免责声明
+
 我们需要从arkts侧传递两个东西至CPP侧，一个是resourceManager，一个是sandboxPath。前者是C/CPP侧获取资源的句柄，后者是沙盒文件路径。
 
 我们先来写cpp侧接收句柄和路径的函数，下面是接收resourc Manager句柄的函数。这里不展开讲，下述代码也仅供参考。详细可以看[NDK开发导读](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/ndk-development-overview)
