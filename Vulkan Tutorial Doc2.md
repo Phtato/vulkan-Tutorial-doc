@@ -567,6 +567,8 @@ vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule)
 
 前面说有些是可以动态变更的，这里我们就先来配置本项目哪些是可以动态变更的。
 
+- [ ] 写不动了，先放着吧，这块儿也不是很关键，也不是必须的，跳过吧
+
 ```cpp
 std::vector<VkDynamicState> dynamicStates = {
     VK_DYNAMIC_STATE_VIEWPORT,	//视口
@@ -581,9 +583,19 @@ dynamicState.pDynamicStates = dynamicStates.data();
 
 `VkDynamicState` 是一个枚举，包含了所有的可能的动态。虽然教程中添加了对于视口和裁剪框的动态，看起来也是支持了窗口的动态变化。但是实测在折叠屏上，窗口大小变化后会直接闪退，暂未计划解决。
 
+
 ### 顶点输入（初步配置）
 
-目前只是画个三角形，shader硬编码了顶点位置，目前无需传入顶点位置，先完成初步配置。
+目前只是画个三角形，shader硬编码了顶点位置，目前无需传入顶点位置，这里只是先完成初步配置。
+
+```cpp
+VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+vertexInputInfo.vertexBindingDescriptionCount = 0;
+vertexInputInfo.pVertexBindingDescriptions = nullptr; // Optional
+vertexInputInfo.vertexAttributeDescriptionCount = 0;
+vertexInputInfo.pVertexAttributeDescriptions = nullptr; // Optional
+```
 
 
 
