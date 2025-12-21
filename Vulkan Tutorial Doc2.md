@@ -291,10 +291,9 @@ swapchain指的是一串可用于展示的图像，vk在这里会把自己的画
 ```cpp
  VkSwapchainCreateInfoKHR swapchainCI = {};
  swapchainCI.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
- swapchainCI.pNext = NULL;
  swapchainCI.surface = surface;          // 这是通过 vkCreateSurfaceOHOS 返回的，可以理解成窗口的句柄
  swapchainCI.minImageCount = desiredNumberOfSwapchainImages;   // 呈现队列的最小数量
- swapchainCI.imageFormat = colorFormat;        // 通过 vkGetPhysicalDeviceSurfaceFormatsKHR 获取，配置颜色格式，ARGB还是RGBA还是A2R10G10B10
+ swapchainCI.imageFormat = swapChainColorFormat;        // 通过 vkGetPhysicalDeviceSurfaceFormatsKHR 获取，配置颜色格式，ARGB还是RGBA还是A2R10G10B10
  swapchainCI.imageColorSpace = colorSpace;       // 色彩空间，和上面这项一起获取的
  swapchainCI.imageExtent = { extent.width, extent.height };   // 通过vkGetPhysicalDeviceSurfaceCapabilitiesKHR获取的 实际的宽高
  swapchainCI.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;  // 这个代表渲直接在swapchain image上绘制
@@ -337,7 +336,7 @@ swapchain指的是一串可用于展示的图像，vk在这里会把自己的画
  VkImageViewCreateInfo colorAttachmentView = {};
  colorAttachmentView.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
  colorAttachmentView.pNext = NULL;
- colorAttachmentView.format = colorFormat;     // 颜色格式，是我们刚刚配置给swapChain的颜色格式
+ colorAttachmentView.format = swapChainColorFormat;     // 颜色格式，是我们刚刚配置给swapChain的颜色格式
  colorAttachmentView.components = {       // 分量重映射，用来重新映射rgba四个分量，也可以将某个值配置为恒为1或0
   VK_COMPONENT_SWIZZLE_R,
   VK_COMPONENT_SWIZZLE_G,
@@ -345,7 +344,7 @@ swapchain指的是一串可用于展示的图像，vk在这里会把自己的画
   VK_COMPONENT_SWIZZLE_A
  };
 /*
- colorAttachmentView.components.r = VK_COMPONENT_SWIZZLE_IDENTITY; // 按自然分量来，感觉就是默认
+ colorAttachmentView.components.r = VK_COMPONENT_SWIZZLE_IDENTITY; // 按自然分量来，就是默认
  colorAttachmentView.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
  colorAttachmentView.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
  colorAttachmentView.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
@@ -651,20 +650,45 @@ colorBlending.pAttachments = &colorBlendAttachment;
 
 ### 管线布局
 
-shader中有一些uniform值，这些值可以在进行绘制的时候变更。这些uniform值都需要在管线创建的时候被定义好，目前画三角形仍然用不上这个，这里也只是占位下。
+shader中有一些uniform值，这些值可以在进行绘制的时候变更。这些uniform值都需要在管线创建的时候被预留好，目前画三角形仍然用不上这个，这里也只是占位下。
 
 ```cpp
 VkPipelineLayout pipelineLayout;
 
 VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-pipelineLayoutInfo.setLayoutCount = 0; // Optional
-pipelineLayoutInfo.pSetLayouts = nullptr; // Optional
-pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
-pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
 
 vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout)
 ```
+
+## 渲染通道
+
+创建管线之前，我们需要明确所有我们后面可能用到的例如贴图、深度缓冲，以及她们用的采样器等等，这些信息都需要被包装进渲染通道里。
+
+### 附件描述
+
+我们需要一个颜色附件，用于作为渲染输出的缓冲区。
+
+```cpp
+    VkAttachmentDescription colorAttachment{};
+    colorAttachment.format = swapChainColorFormat;	//前面swapchain获取到的格式
+    colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;	//单采样
+```
+
+我们的输出是要交给swapchain的，这里的format当然是要和前面的swapchain创建的格式保持一致。
+
+```cpp
+colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+```
+
+这里的loadOp和storeOp代表的是在渲染之前和渲染之后，如何对待附件里的数据。
+
+load阶段有三种：VK_ATTACHMENT_LOAD_OP_LOAD/CLEAR/DONT_CARE。分别代表保留/清除/不在乎之前的数据。
+
+store阶段有两种：VK_ATTACHMENT_STORE_OP_STORE/DONT_CARE。分别代表这些内容存下，后续可能会读和这些内容在后面会被释放，无所谓怎么处理。
+
+
 
 ---------------------------------------
 
