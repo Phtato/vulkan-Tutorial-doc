@@ -176,7 +176,7 @@ swapchain指的是一串可用于展示的图像，vk在这里会把自己的画
 
 ---------------------------------------
 
-## **创建窗口**
+## 创建窗口
 
 ### 获取 XComponent 句柄
 
@@ -298,7 +298,7 @@ swapchain指的是一串可用于展示的图像，vk在这里会把自己的画
  swapchainCI.imageExtent = { extent.width, extent.height };   // 通过vkGetPhysicalDeviceSurfaceCapabilitiesKHR获取的 实际的宽高
  swapchainCI.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;  // 这个代表渲直接在swapchain image上绘制
  swapchainCI.preTransform = (VkSurfaceTransformFlagBitsKHR)preTransform; //前面通过vkGetPhysicalDeviceSurfaceCapabilitiesKHR拿到的currentTransform
- swapchainCI.imageArrayLayers = 1;         // 表示每个图像包含的层次，除非开发vr项目，不然这个一般都是1
+ swapchainCI.imageArrayLayers = 1;         // 表示图像包含的视角的数量，除非开发多视角项目（我理解例如vr项目），不然这个一般都是1
  swapchainCI.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;   // graphics 和 present 在同一族，该项表示图像由单一队列族独占
  swapchainCI.queueFamilyIndexCount = 0;        // 表示不与其他队列族共享
  swapchainCI.pQueueFamilyIndices = NULL;        // 表示不与其他队列族共享
@@ -432,7 +432,7 @@ export const sendResourceManagerInstance:(resourceManager: resourceManager.Resou
 
 ### 文件加载函数
 
-以下给出一个鸿蒙文件加载函数的一个基础参考，代码很简单，这里不多解释了。相关资料参考[raw_file_manager](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/capi-raw-file-manager-h#%E6%A6%82%E8%BF%B0)
+以下给出一个鸿蒙文件加载函数的一个基础参考，目前实现方法很蠢，不可能实际应用，不过胜在简单。相关资料参考[raw_file_manager](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/capi-raw-file-manager-h#%E6%A6%82%E8%BF%B0)
 
 ```cpp
     std::vector<char> readFile(const std::string &assetFilePath) {
@@ -457,11 +457,13 @@ export const sendResourceManagerInstance:(resourceManager: resourceManager.Resou
     }
 ```
 
-## shader
+## Shader
 
 vulkan 允许你使用GLSL、HLSL编写代码，编译器会把代码翻译成字节码 SPIR-V。下面的 shader 均采用GLSL。
 
 当前的目标为画一个三角形，这里仅简单给出和解释下本次流程的shader代码。
+
+### Vertex Shader
 
 下面是vertex shader，先简单的硬编码
 
@@ -493,6 +495,8 @@ void main() {
 }
 ```
 
+### Fragment Shader
+
 这里只需要简单的把传过来的颜色赋值就完了，剩下的会自己插值的。
 
 ```glsl
@@ -507,7 +511,7 @@ void main() {
 }
 ```
 
-### shader 编译
+### Shader 编译
 
 通过以下两个指令进行编译，需要配置glslc的环境。
 
@@ -518,7 +522,7 @@ glslc -fshader-stage=frag path/to/shaders/shader.frag -o path/to/resources/rawfi
 
 *注意：不建议将这个放到cmakelists里执行，deveco编译的执行顺序是先将所有的resource打包，然后再编译CPP文件，这会导致本次的shader的修改不会被带到这个本次修改中*
 
-### 加载 shader
+### 加载 Shader
 
 前面已经做好了准备，这里来加载 shader 文件吧。
 
@@ -529,7 +533,7 @@ glslc -fshader-stage=frag path/to/shaders/shader.frag -o path/to/resources/rawfi
     auto fragShaderCode = readFile("shaders/frag.spv");
 ```
 
-### 创建 shader module
+### 创建 Shader Module
 
 `VkShaderModule`相当于是 shader 文件的句柄，我们需要在这个结构体中绑定 shader 和配置。
 
@@ -544,7 +548,7 @@ vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule)
 
 我们这里需要创建 vertex 和 fragment 两个 shader module。
 
-### shader stage 创建
+### Shader Stage 创建
 
 不同的 shader 在不同的 pipeline 阶段发挥作用，我们这里需要给我们的 shader 绑定到这些特定的阶段上。
 
@@ -670,9 +674,9 @@ vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout)
 我们需要一个颜色附件，用于作为渲染输出的缓冲区。
 
 ```cpp
-    VkAttachmentDescription colorAttachment{};
-    colorAttachment.format = swapChainColorFormat;	//前面swapchain获取到的格式
-    colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;	//单采样
+VkAttachmentDescription colorAttachment{};
+colorAttachment.format = swapChainColorFormat;	//前面swapchain获取到的格式
+colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;	//单采样
 ```
 
 我们的输出是要交给swapchain的，这里的format当然是要和前面的swapchain创建的格式保持一致。
@@ -686,7 +690,97 @@ colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 
 load阶段有三种：VK_ATTACHMENT_LOAD_OP_LOAD/CLEAR/DONT_CARE。分别代表保留/清除/不在乎之前的数据。
 
-store阶段有两种：VK_ATTACHMENT_STORE_OP_STORE/DONT_CARE。分别代表这些内容存下，后续可能会读和这些内容在后面会被释放，无所谓怎么处理。
+store阶段有两种：VK_ATTACHMENT_STORE_OP_STORE/DONT_CARE。分别代表：这些内容存下，后续可能会读和这些内容在后面会被释放，无所谓怎么处理。
+
+```cpp
+// 我们这里没有做模版测试，全部忽略即可
+colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+
+colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;	// 初始布局，我们这初始没有数据，直接覆盖写，所以这里直接配置undefined
+colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;	//最后拿来呈现给屏幕的
+```
+
+顺道说下，format指的是数据格式，layout一般描述的是数据的“组织方式”，用于这个是动态的，决定数据被如何访问。
+
+常见的layout还有
+
+- VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL：图像被用作颜色附着
+- VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL：图像被用作复制操作的目的图像
+
+### 子流程和附件引用
+
+一个渲染流程可以包含多个子流程（比如后处理效果），我们当前这个肉眼可见的不需要多个。
+
+首先配置附件，每个子流程都可以引用一个或者多个附件。
+
+```cpp
+VkAttachmentReference colorAttachmentRef = {};
+colorAttachmentRef.attachment = 0;	// 这个索引指向渲染通道的附件描述数组，0表示第一个附件，也就是我们上面创建的colorAttachment
+colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;	// 一般配置成这个就行，表示vulkan会自动转换，这个性能表现也好
+```
+
+这里的 `attachment` 字段指定的是索引，对应在后面创建渲染通道时传入的附件描述数组中的位置。因为我们目前只有一个颜色附件，所以索引为0。如果有多个附件（比如颜色附件、深度附件等），就会有索引1、2等。
+
+接下来配置子流程。
+```cpp
+VkSubpassDescription subpass = {};
+subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; //通过这个配置申明是图像渲染的子流程
+
+subpass.colorAttachmentCount = 1;
+subpass.pColorAttachments = &colorAttachmentRef; //我们刚刚配置的附件引用
+```
+
+这里配置的附件引用就是在fragment shader里使用的 `layout(location = 0) out vec4 outColor` ，注意这里的0，这个0和上面的 `colorAttachmentRef.attachment = 0` 是对应的，如果上面我们配置是1，那么shader中的也配置成1。
+
+### 渲染流程
+
+终于，我们开始配置渲染流程了。先创建一个VkRenderPass对象
+
+```cpp
+VkRenderPass renderPass;
+VkPipelineLayout pipelineLayout;
+```
+
+创建渲染流程对象需要填写 VkRenderPassCreateInfo 结构体
+
+```cpp
+VkRenderPassCreateInfo renderPassInfo = {};
+renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+renderPassInfo.attachmentCount = 1;
+renderPassInfo.pAttachments = &colorAttachment;
+renderPassInfo.subpassCount = 1;
+renderPassInfo.pSubpasses = &subpass;
+
+vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass);
+```
+
+## 小结
+
+至此，我们完成了从 Shader 到渲染通道的完整配置流程：
+
+1. **Shader 处理**
+   - 使用 `glslc` 将 GLSL 代码编译成 SPIR-V 字节码
+   - 通过文件加载函数读取编译后的 `.spv` 文件
+   - 创建 `VkShaderModule` 作为 shader 的句柄
+   - 创建 `VkPipelineShaderStageCreateInfo` 将 shader 绑定到管线的特定阶段（vertex/fragment）
+
+2. **图形管线配置**
+   - 配置动态状态（视口和裁剪框）
+   - 配置顶点输入状态（目前为空，因为顶点硬编码在 shader 中）
+   - 配置光栅化状态（多边形模式、剔除模式、深度偏移等）
+   - 配置颜色混合状态（目前禁用混合）
+   - 创建管线布局（预留 uniform 值的位置）
+
+3. **渲染通道**
+   - 创建附件描述（`VkAttachmentDescription`），定义颜色附件的格式、采样数、加载/存储操作
+   - 创建附件引用（`VkAttachmentReference`），指定附件在数组中的索引和布局
+   - 配置子流程（`VkSubpassDescription`），关联颜色附件引用
+   - 创建渲染通道（`VkRenderPass`），将所有配置组合在一起
+
+接下来需要将这些信息整合到管线创建信息中，完成图形管线的最终构建。
+
+## 创建图形管线
 
 
 
@@ -695,12 +789,12 @@ store阶段有两种：VK_ATTACHMENT_STORE_OP_STORE/DONT_CARE。分别代表这�
 ## 创建 Command buffers
 
 ```cpp
- VkCommandBufferAllocateInfo cmdBufAllocateInfo{};
- cmdBufAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
- cmdBufAllocateInfo.commandPool = cmdPool;
- cmdBufAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
- cmdBufAllocateInfo.commandBufferCount = static_cast<uint32_t>(commandBuffers.size());
- VK_CHECK_RESULT(vkAllocateCommandBuffers(device, &cmdBufAllocateInfo, commandBuffers.data()));
+VkCommandBufferAllocateInfo cmdBufAllocateInfo{};
+cmdBufAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+cmdBufAllocateInfo.commandPool = cmdPool;
+cmdBufAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+cmdBufAllocateInfo.commandBufferCount = static_cast<uint32_t>(commandBuffers.size());
+VK_CHECK_RESULT(vkAllocateCommandBuffers(device, &cmdBufAllocateInfo, commandBuffers.data()));
 ```
 
 - [ ] todo 这里还没写，确认下这段放哪里合适
@@ -716,10 +810,11 @@ VkCommandPool cmdPool;
 VK_CHECK_RESULT(vkCreateCommandPool(logicalDevice, &cmdPoolInfo, nullptr, &cmdPool));
 ```
 
-## TODO
+---------------------------------------
 
-- [ ] 诶，先把代码贴一下睡了明天再说
-- [ ] 确认下这里真的有必要拐弯去做个lut吗
+## 待办事项
+
+- [x] 确认下这里真的有必要拐弯去做个lut吗---写
 
 ```cpp
 const VkFormat format = VK_FORMAT_R16G16_SFLOAT;
@@ -749,7 +844,9 @@ VK_CHECK_RESULT(vkAllocateMemory(device, &memAllocInfo, nullptr, &textures.lutBr
 VK_CHECK_RESULT(vkBindImageMemory(device, textures.lutBrdf.image, textures.lutBrdf.deviceMemory, 0));
 ```
 
-# TODOLIST
+---------------------------------------
+
+## 任务清单
 
 - [ ] [动态状态](#动态状态) 动态状态细节补充、和折叠屏内外屏转换是否有关
 - [ ]
