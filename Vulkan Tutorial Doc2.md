@@ -571,6 +571,9 @@ vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule)
  fragShaderStageInfo.pName = "main";
 ```
 
+```cpp
+VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo,fragShaderStageInfo};
+```
 总结一下，流程为：先把 glsl 翻译成 SPIR-V，以 char 字节流的形式加载这些数据，绑定到 shader module 中，最后再把 module 封装到 shader stage中，确定这些shader发挥作用的阶段。
 
 ---------------------------------------
@@ -782,7 +785,14 @@ vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass);
 
 ## 创建图形管线
 
+我们现在已经能够开始创建图形管线了（猜猜还要多久才能渲染出一个三角形）
 
+```cpp
+VkGraphicsPipelineCreateInfo pipelineInfo = {};
+pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+pipelineInfo.stageCount = 2;
+pipelineInfo.pStages = shaderStages;
+```
 
 ---------------------------------------
 
