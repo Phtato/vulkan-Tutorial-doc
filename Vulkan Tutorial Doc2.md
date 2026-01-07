@@ -571,6 +571,8 @@ vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule)
  fragShaderStageInfo.pName = "main";
 ```
 
+最后把两个合一起。
+
 ```cpp
 VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo,fragShaderStageInfo};
 ```
@@ -580,13 +582,11 @@ VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo,fragShader
 
 ## 固定功能管线
 
-老式图形接口有很多固定功能是隐式配置的，vulkan则要求这些必须显式配置，这些配置绝大部分都是配置完成后不可动态变更的。可以动态变更的的状态可以在命令录制期间通过vCmdSet*来配置。
+老式图形接口有很多固定功能是隐式配置的，vulkan则要求这些必须显式配置，这些配置绝大部分都是配置完成后不可动态变更的，如果要修改这些配置，就需要销毁后重新创建。可以动态变更的的状态可以在命令录制期间通过vCmdSet*来配置。
 
 ### 动态状态
 
-前面说有些是可以动态变更的，这里我们就先来配置本项目哪些是可以动态变更的。
-
-- [ ] 写不动了，先放着吧，这块儿也不是很关键，也不是必须的，跳过吧
+虽然说大部份都是不可动态变更的，不过还是有些可以不用重新创建就可以修改的。比如视口大小，线宽和混合常量。如果要用这些动态状态，需要像下面这样通过 `VkPipelineDynamicStateCreateInfo` 声明出来。 
 
 ```cpp
 std::vector<VkDynamicState> dynamicStates = {
@@ -600,7 +600,8 @@ dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
 dynamicState.pDynamicStates = dynamicStates.data();
 ```
 
-`VkDynamicState` 是一个枚举，包含了所有的可能的动态。虽然教程中添加了对于视口和裁剪框的动态，看起来也是支持了窗口的动态变化。但是实测在折叠屏上，窗口大小变化后会直接闪退，暂未计划解决。
+`VkDynamicState` 是一个枚举，包含了所有的可能的动态。虽然教程中添加了对于视口和裁剪框的动态，看起来也是支持了窗口的动态变化。但是实测在折叠屏上，窗口大小变化后会直接闪退，不确定原因。
+
 
 ### 顶点输入（初步配置）
 
@@ -615,7 +616,9 @@ vertexInputInfo.vertexAttributeDescriptionCount = 0;	// 顶点属性描述，目
 vertexInputInfo.pVertexAttributeDescriptions = nullptr; // Optional
 ```
 
-OK，虽然一点不用，但是代码没这个他没法跑
+### 输入装配（Input assembly）
+
+这里主要是通过`VkPipelineInputAssemblyStateCreateInfo`来描述两个东西，一个是
 
 ### 光栅化状态配置
 
@@ -791,7 +794,15 @@ vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass);
 VkGraphicsPipelineCreateInfo pipelineInfo = {};
 pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
 pipelineInfo.stageCount = 2;
-pipelineInfo.pStages = shaderStages;
+pipelineInfo.pStages = shaderStages;        // 帮你回忆下，是前面的vertex shader和fragment shader
+pipelineInfo.pVertexInputState = &vertexInputInfo;  // vertex坐标的输入，我们目前没有
+pipelineInfo.pInputAssemblyState = &inputAssembly;  // 
+pipelineInfo.pViewportState = &viewportState;
+pipelineInfo.pRasterizationState = &rasterizer;
+pipelineInfo.pMultisampleState = &multisampling;
+pipelineInfo.pDepthStencilState = nullptr; // Optional
+pipelineInfo.pColorBlendState = &colorBlending;
+pipelineInfo.pDynamicState = nullptr; // Optional
 ```
 
 ---------------------------------------
