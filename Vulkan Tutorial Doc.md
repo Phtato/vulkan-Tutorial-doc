@@ -259,7 +259,7 @@ swapchain指的是一串可用于展示的图像，vk在这里会把自己的画
  vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, &queueCount, queueProps.data());
 ```
 
-上面这个写法已经很熟悉了（我都觉得可以写成模版了），和前面是一模一样的，总之是获取 VkQueueFamilyProperties，然后确认支不支持present。
+上面这个写法已经很熟悉了，和前面是很类似的，这里省略了很多，总之是获取 VkQueueFamilyProperties，然后确认支不支持present。
 
 ```cpp
  std::vector<VkBool32> supportsPresent(queueCount);
