@@ -282,7 +282,7 @@ swapchain指的是一串可用于展示的图像，vk在这里会把自己的画
 - `supportedCompositeAlpha` 配置是否需要和窗口背后的颜色进行混色。
 - `colorSpace` 色彩空间
 
-通过 `vkGetPhysicalDeviceSurfaceFormatsKHR` 接口来获取支持的颜色格式和颜色空间，要配置HDR的话就在这里查询是否支持。（鸿蒙是支持的，但是我这里都没配）
+通过 `vkGetPhysicalDeviceSurfaceFormatsKHR` 接口来获取支持的颜色格式和颜色空间，要配置HDR的话就在这里查询是否支持。（鸿蒙是支持的，但是我这里都没配）（简单直接配置画面会异常，需要进一步调查看下是不是需要鸿蒙侧配置些东西）
 
 通过 `vkGetPhysicalDeviceSurfacePresentModesKHR` 接口来获取支持的呈现模式，如果要配置垂直同步就用这个接口来查询是否支持 `VK_PRESENT_MODE_MAILBOX_KHR`，方法和前面的类似，不再赘述。
 
